@@ -1,0 +1,2 @@
+### openSIMP 3 example client
+This project contains a client that connects to an openSIMP server. It is written in Rust and uses [egui](https://github.com/emilk/egui) for the UI. The handhshake is done via [stcp](https://github.com/vivyir/stcp) and encrypted via AES-256-GCM with memory hardening (which simp3 server also uses) 
