@@ -31,6 +31,7 @@ struct ChatClient {
     input: String,
     connected: bool,
     messages: Arc<RwLock<Vec<(String, egui::Color32)>>>,
+    users: Arc<RwLock<Vec<String>>>,
     server: ServerInfo,
     ui_theme: Theme,
     remote: Remote,
@@ -179,6 +180,7 @@ impl eframe::App for ChatClient {
 
                         // Required clones for thread:
                         let mvec_clone = self.messages.clone();
+                        let uvec_clone = self.users.clone();
                         let mut aes_clone = self.remote.aes.clone().unwrap();
                         let running = self.running.clone();
                         let repaint = self.repaint.clone();
@@ -257,6 +259,16 @@ impl eframe::App for ChatClient {
                                                     .write()
                                                     .unwrap()
                                                     .push( (format!("{name} left #{channel}"), Color32::YELLOW) );
+                                            }
+                                            Packet::List(list) => {
+                                                let members : Vec<&str> = list.split(',').collect();
+                                                uvec_clone.write().unwrap().clear();
+                                                println!("Got list!");
+                                                dbg!(members.clone());
+                                                
+                                                for member in members {
+                                                    uvec_clone.write().unwrap().push(member.to_owned());
+                                                }
                                             }
                                             _ => panic!("{}", "Recv Illegal packet"),
                                         }
@@ -337,17 +349,10 @@ impl eframe::App for ChatClient {
                             ui.label("USERS");
                             ui.separator();
 
-                            let users = [
-                                ("spixa", egui::Color32::GREEN),
-                                ("kasraidk", egui::Color32::GREEN),
-                                ("ladyviviaen", egui::Color32::YELLOW),
-                                ("lef1n", egui::Color32::LIGHT_RED),
-                            ];
-
-                            for (user, color) in users {
+                            for user in self.users.read().unwrap().iter() {
                                 ui.horizontal(|ui| {
                                     ui.add(egui::Label::new(
-                                        egui::RichText::new("●").color(color),
+                                        egui::RichText::new("●").color(Color32::YELLOW),
                                     ));
                                     ui.label(user);
                                 });
@@ -357,12 +362,11 @@ impl eframe::App for ChatClient {
 
                 egui::TopBottomPanel::bottom("logs").show(ctx, |ui| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        let max_width = ui.available_width() - 100.0;
                         egui::ScrollArea::vertical()
                             .max_height(ui.available_height() - 50.0)
                             .stick_to_bottom(true)
                             .show(ui, |ui| {
-                                ui.set_max_height(max_width);
+                                //ui.set_max_height(max_width);
                                 for (msg, color) in self.messages.read().unwrap().iter() {
                                     ui.add(egui::Label::new(egui::RichText::new(msg).text_style(egui::TextStyle::Monospace).color(*color)).wrap(true));
                                 }
@@ -414,6 +418,7 @@ fn main() {
                 input: "hello, world!".into(),
                 connected: false,
                 messages: Arc::new(RwLock::new(vec![])),
+                users: Arc::new(RwLock::new(vec![])),
                 remote: Remote::default(),
                 running: Arc::new(AtomicBool::new(true)),
                 repaint: Arc::new(AtomicBool::new(false)),

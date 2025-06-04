@@ -15,6 +15,7 @@ pub enum Packet {
     Ping,
     ChannelJoin(String, String),
     ChannelLeave(String, String),
+    List(String),
     _GracefulDisconnect,
     Illegal,
 }
