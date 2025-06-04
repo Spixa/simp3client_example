@@ -36,6 +36,7 @@ struct ChatClient {
     ui_theme: Theme,
     remote: Remote,
     running: Arc<AtomicBool>,
+    repaint: Arc<AtomicBool>
 }
 
 #[derive(Default)]
@@ -111,6 +112,11 @@ impl eframe::App for ChatClient {
             process::exit(0);
         }
 
+        if self.repaint.load(Ordering::Relaxed) {
+            ctx.request_repaint();
+            self.repaint.store(true, Ordering::Relaxed);
+        }
+
         self.apply_theme(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -177,6 +183,7 @@ impl eframe::App for ChatClient {
                         let mvec_clone = self.messages.clone();
                         let mut aes_clone = self.remote.aes.clone().unwrap();
                         let running = self.running.clone();
+                        let repaint = self.repaint.clone();
 
                         thread::spawn(move || {
                             while running.load(Ordering::Relaxed) {
@@ -255,6 +262,7 @@ impl eframe::App for ChatClient {
                                             }
                                             _ => panic!("{}", "Recv Illegal packet"),
                                         }
+                                        repaint.store(true, Ordering::Relaxed);
                                     }
                                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                                     Err(_) => {
@@ -411,6 +419,7 @@ fn main() {
                 messages: Arc::new(RwLock::new(vec!["Welcome".into()])),
                 remote: Remote::default(),
                 running: Arc::new(AtomicBool::new(true)),
+                repaint: Arc::new(AtomicBool::new(false)),
             })
         }),
     );
