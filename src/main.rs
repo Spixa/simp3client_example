@@ -1,5 +1,4 @@
 use aes_gcm::Aes256Gcm;
-use core::f32;
 use eframe::egui;
 use egui::Color32;
 use net::{decode_packet, encode_packet};
@@ -31,12 +30,12 @@ struct ChatClient {
     password: String,
     input: String,
     connected: bool,
-    messages: Arc<RwLock<Vec<String>>>,
+    messages: Arc<RwLock<Vec<(String, egui::Color32)>>>,
     server: ServerInfo,
     ui_theme: Theme,
     remote: Remote,
     running: Arc<AtomicBool>,
-    repaint: Arc<AtomicBool>
+    repaint: Arc<AtomicBool>,
 }
 
 #[derive(Default)]
@@ -80,10 +79,9 @@ struct Theme {
 impl ChatClient {
     fn send_message(&mut self) {
         if !self.input.trim().is_empty() {
-            // message is good
-            let msg = format!("<{}> {}", self.username, self.input);
-
-            self.messages.write().unwrap().push(msg);
+            // DEBUG
+            // let msg = format!("<{}> {}", self.username, self.input);
+            // self.messages.write().unwrap().push((msg, Color32::GRAY));
 
             self.remote
                 .io
@@ -213,52 +211,52 @@ impl eframe::App for ChatClient {
                                         // finally we have the packet
                                         match packet {
                                             Packet::Message(content, username, channel) => {
-                                                mvec_clone.write().unwrap().push(format!(
-                                                    "[{channel}] <{username}>: {content}"
-                                                ));
+                                                mvec_clone.write().unwrap().push((format!(
+                                                    "[#{channel}] <{username}>: {content}"
+                                                ), Color32::WHITE));
                                             }
                                             Packet::ClientDM(_, _) => todo!(),
                                             Packet::Join(name) => {
                                                 mvec_clone
                                                     .write()
                                                     .unwrap()
-                                                    .push(format!("{name} joined the server"));
+                                                    .push( (format!("{name} joined the server"), Color32::YELLOW) );
                                             }
                                             Packet::Leave(name) => {
                                                 mvec_clone
                                                     .write()
                                                     .unwrap()
-                                                    .push(format!("{name} left the server"));
+                                                    .push( (format!("{name} left the server"), Color32::YELLOW) );
                                             }
                                             Packet::ClientRespone(msg) => {
                                                 mvec_clone
                                                     .write()
                                                     .unwrap()
-                                                    .push(msg);
+                                                    .push((msg, Color32::GRAY));
                                             }
                                             Packet::ServerDM(msg) => {
                                                 mvec_clone
                                                     .write()
                                                     .unwrap()
-                                                    .push(format!("[Server] {msg}"));
+                                                    .push( (format!("[Server] {msg}"), Color32::LIGHT_GREEN));
                                             }
                                             Packet::Broadcast(msg) => {
                                                 mvec_clone
                                                     .write()
                                                     .unwrap()
-                                                    .push(format!("[Server] {msg}"));
+                                                    .push( (format!("[Server] {msg}"), Color32::LIGHT_GREEN));
                                             }
                                             Packet::ChannelJoin(name, channel) => {
                                                 mvec_clone
                                                     .write()
                                                     .unwrap()
-                                                    .push(format!("{name} joined #{channel}"));
+                                                    .push( (format!("{name} joined #{channel}"), Color32::YELLOW) );
                                             }
                                             Packet::ChannelLeave(name, channel) => {
                                                 mvec_clone
                                                     .write()
                                                     .unwrap()
-                                                    .push(format!("{name} left #{channel}"));
+                                                    .push( (format!("{name} left #{channel}"), Color32::YELLOW) );
                                             }
                                             _ => panic!("{}", "Recv Illegal packet"),
                                         }
@@ -321,27 +319,52 @@ impl eframe::App for ChatClient {
                             ui.label("CHANNELS");
                             ui.separator();
 
-                            let channels = ["#general", "#lobby", "#random"];
+                            let channels = ["general", "lobby", "random"];
                             for channel in channels {
-                                if ui.button(channel).clicked() {
-                                    self.messages
-                                        .write()
-                                        .unwrap()
-                                        .push(format!("Joined {}", channel));
+                                if ui.button(format!("#{channel}")).clicked() {
+                                    self.input = format!("/join {channel}");
+                                    self.send_message();
                                 }
                             }
                         });
                     });
 
+                egui::SidePanel::right("users")
+                    .resizable(false)
+                    .exact_width(120.0)
+                    .show(ctx, |ui| {
+                        ui.vertical(|ui| {
+                            ui.label("USERS");
+                            ui.separator();
+
+                            let users = [
+                                ("spixa", egui::Color32::GREEN),
+                                ("kasraidk", egui::Color32::GREEN),
+                                ("ladyviviaen", egui::Color32::YELLOW),
+                                ("lef1n", egui::Color32::LIGHT_RED),
+                            ];
+
+                            for (user, color) in users {
+                                ui.horizontal(|ui| {
+                                    ui.add(egui::Label::new(
+                                        egui::RichText::new("●").color(color),
+                                    ));
+                                    ui.label(user);
+                                });
+                            }
+                        });
+                });
+
                 egui::TopBottomPanel::bottom("logs").show(ctx, |ui| {
                     egui::CentralPanel::default().show(ctx, |ui| {
+                        let max_width = ui.available_width() - 100.0;
                         egui::ScrollArea::vertical()
-                            .max_width(f32::INFINITY)
                             .max_height(ui.available_height() - 50.0)
                             .stick_to_bottom(true)
                             .show(ui, |ui| {
-                                for msg in self.messages.read().unwrap().iter() {
-                                    ui.label(egui::RichText::new(msg).monospace());
+                                ui.set_max_height(max_width);
+                                for (msg, color) in self.messages.read().unwrap().iter() {
+                                    ui.add(egui::Label::new(egui::RichText::new(msg).text_style(egui::TextStyle::Monospace).color(*color)).wrap(true));
                                 }
                             });
                     });
@@ -365,32 +388,6 @@ impl eframe::App for ChatClient {
                             }
                         });
                     });
-
-                    egui::SidePanel::right("users")
-                        .resizable(false)
-                        .exact_width(120.0)
-                        .show(ctx, |ui| {
-                            ui.vertical(|ui| {
-                                ui.label("USERS");
-                                ui.separator();
-
-                                let users = [
-                                    ("spixa", egui::Color32::GREEN),
-                                    ("kasraidk", egui::Color32::GREEN),
-                                    ("ladyviviaen", egui::Color32::YELLOW),
-                                    ("lef1n", egui::Color32::LIGHT_RED),
-                                ];
-
-                                for (user, color) in users {
-                                    ui.horizontal(|ui| {
-                                        ui.add(egui::Label::new(
-                                            egui::RichText::new("●").color(color),
-                                        ));
-                                        ui.label(user);
-                                    });
-                                }
-                            });
-                        });
                 });
             }
         });
@@ -416,7 +413,7 @@ fn main() {
                 ui_theme: Theme::default(),
                 input: "hello, world!".into(),
                 connected: false,
-                messages: Arc::new(RwLock::new(vec!["Welcome".into()])),
+                messages: Arc::new(RwLock::new(vec![])),
                 remote: Remote::default(),
                 running: Arc::new(AtomicBool::new(true)),
                 repaint: Arc::new(AtomicBool::new(false)),
