@@ -34,7 +34,7 @@ pub fn decode_packet(buf: &[u8]) -> Packet {
         strvec.push(String::from_utf8(x.to_vec()).unwrap());
     }
 
-    let res = match strvec[0].as_str() {
+    match strvec[0].as_str() {
         "0" => Packet::Message(strvec[1].clone(), strvec[2].clone(), strvec[3].clone()),
         "1" => Packet::Join(strvec[1].clone()),
         "2" => Packet::Leave(strvec[1].clone()),
@@ -49,9 +49,7 @@ pub fn decode_packet(buf: &[u8]) -> Packet {
         "d" => Packet::ChannelJoin(strvec[1].clone(), strvec[2].clone()),
         "e" => Packet::ChannelLeave(strvec[1].clone(), strvec[2].clone()),
         _else => Packet::Illegal,
-    };
-
-    res
+    }
 }
 
 /*

@@ -1,10 +1,5 @@
 use aes_gcm::Aes256Gcm;
 use core::f32;
-use std::io::ErrorKind;
-use std::net::Shutdown;
-use std::process;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 use eframe::egui;
 use egui::Color32;
 use net::{decode_packet, encode_packet};
@@ -12,6 +7,11 @@ use rs_sha512::HasherContext;
 use rs_sha512::Sha512State;
 use stcp::{AesPacket, bincode, client_kex};
 use std::hash::BuildHasher;
+use std::io::ErrorKind;
+use std::net::Shutdown;
+use std::process;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::{
     hash::Hasher,
     io::{Read, Write},
@@ -35,9 +35,10 @@ struct ChatClient {
     server: ServerInfo,
     ui_theme: Theme,
     remote: Remote,
-    running: Arc<AtomicBool>
+    running: Arc<AtomicBool>,
 }
 
+#[derive(Default)]
 struct Remote {
     io: Option<Io>,
     aes: Option<Aes256Gcm>,
@@ -47,15 +48,6 @@ struct Io {
     tx: Sender<String>,
 }
 
-impl Default for Remote {
-    fn default() -> Self {
-        Self {
-            aes: None,
-            io: None,
-        }
-    }
-}
-
 #[derive(Default)]
 struct ServerInfo {
     _name: String,
@@ -63,7 +55,7 @@ struct ServerInfo {
     _port: u16,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Theme {
     // bg_color: egui::Color32,
     // text_color: egui::Color32,
@@ -71,17 +63,18 @@ struct Theme {
     // border_color: egui::Color32,
 }
 
-impl Default for Theme {
-    fn default() -> Self {
-        Self {
-            // shitty theme for now
-            // bg_color: egui::Color32::from_rgb(40, 40, 40),
-            // text_color: egui::Color32::from_rgb(200, 200, 200),
-            // button_color: egui::Color32::from_rgb(0, 100, 180),
-            // border_color: egui::Color32::from_rgb(203, 75, 22),
-        }
-    }
-}
+// Will be later:
+// impl Default for Theme {
+//     fn default() -> Self {
+//         Self {
+//             // shitty theme for now
+//             // bg_color: egui::Color32::from_rgb(40, 40, 40),
+//             // text_color: egui::Color32::from_rgb(200, 200, 200),
+//             // button_color: egui::Color32::from_rgb(0, 100, 180),
+//             // border_color: egui::Color32::from_rgb(203, 75, 22),
+//         }
+//     }
+// }
 
 impl ChatClient {
     fn send_message(&mut self) {
@@ -203,7 +196,7 @@ impl eframe::App for ChatClient {
                                                 running.store(false, Ordering::Relaxed);
 
                                                 thread::sleep(Duration::from_secs(1));
-                                            }   
+                                            }
                                         }
 
                                         let packet = packet.unwrap();
@@ -296,7 +289,6 @@ impl eframe::App for ChatClient {
                                     Err(TryRecvError::Empty) => thread::yield_now(),
                                     Err(TryRecvError::Disconnected) => break,
                                 }
-                                
                                 thread::sleep(Duration::from_micros(50));
                             }
                         });
@@ -418,7 +410,7 @@ fn main() {
                 connected: false,
                 messages: Arc::new(RwLock::new(vec!["Welcome".into()])),
                 remote: Remote::default(),
-                running: Arc::new(AtomicBool::new(true))
+                running: Arc::new(AtomicBool::new(true)),
             })
         }),
     );
