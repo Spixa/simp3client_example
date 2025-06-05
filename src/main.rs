@@ -148,7 +148,7 @@ impl eframe::App for ChatClient {
 
                         ui.add(
                             egui::TextEdit::singleline(&mut self.server.name)
-                                .hint_text("server name")
+                                .hint_text("server name"),
                         );
 
                         ui.add(
@@ -161,12 +161,11 @@ impl eframe::App for ChatClient {
 
                     if ui.button("CONNECT").clicked() {
                         let mut stream = match TcpStream::connect(self.server.ip.clone().trim()) {
-                            Ok(stream) => {
-                                stream
-                            },
+                            Ok(stream) => stream,
                             Err(err) => {
                                 self.error_modal.show = true;
-                                self.error_modal.message = format!("Failed to connec to the server: {}", err.kind());
+                                self.error_modal.message =
+                                    format!("Failed to connec to the server: {}", err.kind());
                                 return;
                             }
                         };
@@ -199,7 +198,9 @@ impl eframe::App for ChatClient {
                         let (tx, rx) = mpsc::channel::<String>();
                         self.remote.io = Some(Io { tx });
 
-                        stream.set_nonblocking(true).expect("Failed to set non-blocking to true");
+                        stream
+                            .set_nonblocking(true)
+                            .expect("Failed to set non-blocking to true");
 
                         // Required clones for thread:
                         let mvec_clone = self.messages.clone();
@@ -220,7 +221,9 @@ impl eframe::App for ChatClient {
                                         match packet {
                                             Ok(_) => {}
                                             Err(_) => {
-                                                stream.shutdown(Shutdown::Both).expect("Failed to shutdown");
+                                                stream
+                                                    .shutdown(Shutdown::Both)
+                                                    .expect("Failed to shutdown");
                                                 running.store(false, Ordering::Relaxed);
                                             }
                                         }
@@ -229,7 +232,7 @@ impl eframe::App for ChatClient {
                                             Ok(p) => p,
                                             Err(_) => {
                                                 break;
-                                            },
+                                            }
                                         };
                                         let decrypted = packet.decrypt(&mut aes_clone);
                                         let packet = decode_packet(&decrypted);
@@ -238,59 +241,71 @@ impl eframe::App for ChatClient {
                                         // finally we have the packet
                                         match packet {
                                             Packet::Message(content, username, channel) => {
-                                                mvec_clone.write().unwrap().push((format!(
-                                                    "[#{channel}] <{username}>: {content}"
-                                                ), Color32::WHITE, now));
+                                                mvec_clone.write().unwrap().push((
+                                                    format!("[#{channel}] <{username}>: {content}"),
+                                                    Color32::WHITE,
+                                                    now,
+                                                ));
                                             }
                                             Packet::ClientDM(_, _) => todo!(),
                                             Packet::Join(name) => {
-                                                mvec_clone
-                                                    .write()
-                                                    .unwrap()
-                                                    .push( (format!("{name} joined the server"), Color32::YELLOW, now));
+                                                mvec_clone.write().unwrap().push((
+                                                    format!("{name} joined the server"),
+                                                    Color32::YELLOW,
+                                                    now,
+                                                ));
                                             }
                                             Packet::Leave(name) => {
-                                                mvec_clone
-                                                    .write()
-                                                    .unwrap()
-                                                    .push( (format!("{name} left the server"), Color32::YELLOW, now));
+                                                mvec_clone.write().unwrap().push((
+                                                    format!("{name} left the server"),
+                                                    Color32::YELLOW,
+                                                    now,
+                                                ));
                                             }
                                             Packet::ClientRespone(msg) => {
-                                                mvec_clone
-                                                    .write()
-                                                    .unwrap()
-                                                    .push((msg, Color32::GRAY, now));
+                                                mvec_clone.write().unwrap().push((
+                                                    msg,
+                                                    Color32::GRAY,
+                                                    now,
+                                                ));
                                             }
                                             Packet::ServerDM(msg) => {
-                                                mvec_clone
-                                                    .write()
-                                                    .unwrap()
-                                                    .push( (format!("[Server] {msg}"), Color32::LIGHT_GREEN, now));
+                                                mvec_clone.write().unwrap().push((
+                                                    format!("[Server] {msg}"),
+                                                    Color32::LIGHT_GREEN,
+                                                    now,
+                                                ));
                                             }
                                             Packet::Broadcast(msg) => {
-                                                mvec_clone
-                                                    .write()
-                                                    .unwrap()
-                                                    .push( (format!("[Server] {msg}"), Color32::LIGHT_GREEN, now));
+                                                mvec_clone.write().unwrap().push((
+                                                    format!("[Server] {msg}"),
+                                                    Color32::LIGHT_GREEN,
+                                                    now,
+                                                ));
                                             }
                                             Packet::ChannelJoin(name, channel) => {
-                                                mvec_clone
-                                                    .write()
-                                                    .unwrap()
-                                                    .push( (format!("{name} joined #{channel}"), Color32::YELLOW, now) );
+                                                mvec_clone.write().unwrap().push((
+                                                    format!("{name} joined #{channel}"),
+                                                    Color32::YELLOW,
+                                                    now,
+                                                ));
                                             }
                                             Packet::ChannelLeave(name, channel) => {
-                                                mvec_clone
-                                                    .write()
-                                                    .unwrap()
-                                                    .push( (format!("{name} left #{channel}"), Color32::YELLOW, now));
+                                                mvec_clone.write().unwrap().push((
+                                                    format!("{name} left #{channel}"),
+                                                    Color32::YELLOW,
+                                                    now,
+                                                ));
                                             }
                                             Packet::List(list) => {
-                                                let members : Vec<&str> = list.split(',').collect();
+                                                let members: Vec<&str> = list.split(',').collect();
                                                 uvec_clone.write().unwrap().clear();
                                                 dbg!(members.clone());
                                                 for member in members {
-                                                    uvec_clone.write().unwrap().push(member.to_owned());
+                                                    uvec_clone
+                                                        .write()
+                                                        .unwrap()
+                                                        .push(member.to_owned());
                                                 }
                                             }
                                             _ => panic!("{}", "Recv Illegal packet"),
@@ -309,7 +324,9 @@ impl eframe::App for ChatClient {
                                         let packet = if msg.starts_with("/dm") {
                                             if msg.len() >= 4 {
                                                 let dm_cmd = msg[4..].to_string();
-                                                let (user, cont) = dm_cmd.split_once(' ').unwrap_or((dm_cmd.as_str(), ""));
+                                                let (user, cont) = dm_cmd
+                                                    .split_once(' ')
+                                                    .unwrap_or((dm_cmd.as_str(), ""));
                                                 Packet::ClientDM(user.to_string(), cont.to_string())
                                             } else {
                                                 Packet::Ping
@@ -345,47 +362,57 @@ impl eframe::App for ChatClient {
                     }
 
                     if self.error_modal.show {
-                        egui::Window::new(egui::RichText::new("Connection Error").color(Color32::WHITE))
-                            .collapsible(false)
-                            .resizable(false)
-                            .anchor(egui::Align2::CENTER_CENTER, [0.0, -50.0])
-                            .show(ctx, |ui| {
-                                ui.label(egui::RichText::new(&self.error_modal.message).color(Color32::RED));
-                                ui.separator();
+                        egui::Window::new(
+                            egui::RichText::new("Connection Error").color(Color32::WHITE),
+                        )
+                        .collapsible(false)
+                        .resizable(false)
+                        .anchor(egui::Align2::CENTER_CENTER, [0.0, -50.0])
+                        .show(ctx, |ui| {
+                            ui.label(
+                                egui::RichText::new(&self.error_modal.message).color(Color32::RED),
+                            );
+                            ui.separator();
 
-                                ui.horizontal(|ui| {
-                                    if ui.button(egui::RichText::new("Reset field").color(Color32::LIGHT_GRAY)).clicked() {
-                                        self.error_modal.show = false;
-                                        self.server.ip = "".into();
-                                    }
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .button(
+                                        egui::RichText::new("Reset field")
+                                            .color(Color32::LIGHT_GRAY),
+                                    )
+                                    .clicked()
+                                {
+                                    self.error_modal.show = false;
+                                    self.server.ip = "".into();
+                                }
 
-                                    if ui.button(egui::RichText::new("Go back").color(Color32::LIGHT_GRAY)).clicked() {
-                                        self.error_modal.show = false;
-                                    }
-                                });
+                                if ui
+                                    .button(
+                                        egui::RichText::new("Go back").color(Color32::LIGHT_GRAY),
+                                    )
+                                    .clicked()
+                                {
+                                    self.error_modal.show = false;
+                                }
                             });
+                        });
                     }
                 });
             } else {
-
                 egui::TopBottomPanel::top("header").show(ctx, |ui| {
                     egui::menu::bar(ui, |ui| {
-                        ui.menu_button("openSIMP3", |_ui| {
-
-                        });
-                        ui.menu_button("File", |_ui| {
-
-                        });
-                        ui.menu_button("View", |_ui| {
-
-                        });
-                        ui.menu_button("About", |_ui| {
-
-                        });
+                        ui.menu_button("openSIMP3", |_ui| {});
+                        ui.menu_button("File", |_ui| {});
+                        ui.menu_button("View", |_ui| {});
+                        ui.menu_button("About", |_ui| {});
                     });
 
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("simp3 test client").color(Color32::GREEN).heading());
+                        ui.label(
+                            egui::RichText::new("simp3 test client")
+                                .color(Color32::GREEN)
+                                .heading(),
+                        );
                         ui.label(format!("Connected to: {}", self.server.ip));
                     });
                 });
@@ -425,7 +452,7 @@ impl eframe::App for ChatClient {
                                 });
                             }
                         });
-                });
+                    });
 
                 egui::TopBottomPanel::bottom("logs").show(ctx, |ui| {
                     egui::CentralPanel::default().show(ctx, |ui| {
@@ -438,9 +465,12 @@ impl eframe::App for ChatClient {
                                     ui.horizontal(|ui| {
                                         // Timestamp in gray
                                         ui.label(
-                                            egui::RichText::new(format!("{}  ", time.format("%H:%M:%S")))
-                                                .color(egui::Color32::GRAY)
-                                                .monospace()
+                                            egui::RichText::new(format!(
+                                                "{}  ",
+                                                time.format("%H:%M:%S")
+                                            ))
+                                            .color(egui::Color32::GRAY)
+                                            .monospace(),
                                         );
 
                                         // Message with original color
@@ -448,42 +478,44 @@ impl eframe::App for ChatClient {
                                             egui::Label::new(
                                                 egui::RichText::new(msg)
                                                     .text_style(egui::TextStyle::Monospace)
-                                                    .color(*color)
+                                                    .color(*color),
                                             )
-                                            .wrap(true)
+                                            .wrap(true),
                                         );
                                     });
                                 }
                             });
                     });
 
-                    egui::TopBottomPanel::bottom("input_panel").show_separator_line(false).show_inside(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            let text_edit = egui::TextEdit::singleline(&mut self.input)
-                                .hint_text("type your message...")
-                                .text_color(Color32::from_rgb(255, 215, 0));
+                    egui::TopBottomPanel::bottom("input_panel")
+                        .show_separator_line(false)
+                        .show_inside(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let text_edit = egui::TextEdit::singleline(&mut self.input)
+                                    .hint_text("type your message...")
+                                    .text_color(Color32::from_rgb(255, 215, 0));
 
-                            let response = ui.add_sized(
-                                [ui.available_width() - 130.0, 24.0],
-                                text_edit
-                            );
+                                let response =
+                                    ui.add_sized([ui.available_width() - 130.0, 24.0], text_edit);
 
-                            // width is fixed
-                            ui.add_sized([60.0, 24.0], egui::Button::new("Send"))
-                                .clicked()
-                                .then(|| self.send_message());
+                                // width is fixed
+                                ui.add_sized([60.0, 24.0], egui::Button::new("Send"))
+                                    .clicked()
+                                    .then(|| self.send_message());
 
-                            ui.add_sized([60.0, 24.0], egui::Button::new("Clear Logs"))
-                                .clicked()
-                                .then(|| self.messages.write().unwrap().clear());
+                                ui.add_sized([60.0, 24.0], egui::Button::new("Clear Logs"))
+                                    .clicked()
+                                    .then(|| self.messages.write().unwrap().clear());
 
-                            // regain focus when we send
-                            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                self.send_message();
-                                ui.memory_mut(|mem| mem.request_focus(response.id));
-                            }
+                                // regain focus when we send
+                                if response.lost_focus()
+                                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                {
+                                    self.send_message();
+                                    ui.memory_mut(|mem| mem.request_focus(response.id));
+                                }
+                            });
                         });
-                    });
                 });
             }
         });
