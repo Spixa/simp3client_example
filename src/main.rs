@@ -1,5 +1,5 @@
 use aes_gcm::Aes256Gcm;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use eframe::egui;
 use egui::{Color32, Stroke};
 use net::{decode_packet, encode_packet};
@@ -20,7 +20,7 @@ use std::{
 };
 use types::{MSG_SIZE, Packet};
 
-type MessageVec = Arc<RwLock<Vec<(String, egui::Color32, DateTime<Utc>)>>>;
+type MessageVec = Arc<RwLock<Vec<(String, egui::Color32, DateTime<Local>)>>>;
 
 #[derive(Default)]
 struct ChatClient {
@@ -231,7 +231,7 @@ impl eframe::App for ChatClient {
                                         let decrypted = packet.decrypt(&mut aes_clone);
                                         let packet = decode_packet(&decrypted);
 
-                                        let now = Utc::now();
+                                        let now = Local::now();
                                         // finally we have the packet
                                         match packet {
                                             Packet::Message(content, username, channel) => {
@@ -328,7 +328,7 @@ impl eframe::App for ChatClient {
                                     Err(TryRecvError::Empty) => thread::yield_now(),
                                     Err(TryRecvError::Disconnected) => break,
                                 }
-                                thread::sleep(Duration::from_micros(10));
+                                //thread::sleep(Duration::from_micros(50000));
                             }
                         });
 
@@ -366,9 +366,25 @@ impl eframe::App for ChatClient {
                     }
                 });
             } else {
+
                 egui::TopBottomPanel::top("header").show(ctx, |ui| {
+                    egui::menu::bar(ui, |ui| {
+                        ui.menu_button("openSIMP3", |_ui| {
+
+                        });
+                        ui.menu_button("File", |_ui| {
+
+                        });
+                        ui.menu_button("View", |_ui| {
+
+                        });
+                        ui.menu_button("About", |_ui| {
+
+                        });
+                    });
+
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("simp3 test client").heading());
+                        ui.label(egui::RichText::new("simp3 test client").color(Color32::GREEN).heading());
                         ui.label(format!("Connected to: {}", self.server.ip));
                     });
                 });
