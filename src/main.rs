@@ -37,6 +37,13 @@ struct ChatClient {
     remote: Remote,
     running: Arc<AtomicBool>,
     repaint: Arc<AtomicBool>,
+    error_modal: ErrorWindow,
+}
+
+#[derive(Default)]
+struct ErrorWindow {
+    show: bool,
+    message: String,
 }
 
 #[derive(Default)]
@@ -51,9 +58,8 @@ struct Io {
 
 #[derive(Default)]
 struct ServerInfo {
-    _name: String,
+    name: String,
     ip: String,
-    _port: u16,
 }
 
 #[derive(Clone, Default)]
@@ -128,26 +134,42 @@ impl eframe::App for ChatClient {
 
                     egui::Frame::group(ui.style()).show(ui, |ui| {
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.username).hint_text("Username"),
+                            egui::TextEdit::singleline(&mut self.username).hint_text("username"),
                         );
 
                         ui.add(
                             egui::TextEdit::singleline(&mut self.password)
-                                .hint_text("Password")
+                                .hint_text("password")
                                 .password(true),
+                        );
+
+                        ui.separator();
+
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.server.name)
+                                .hint_text("server name")
                         );
 
                         ui.add(
                             egui::TextEdit::singleline(&mut self.server.ip)
-                                .hint_text("Server (IP:Port)"),
+                                .hint_text("server (ip:port)"),
                         );
                     });
 
                     ui.add_space(15.0);
 
                     if ui.button("CONNECT").clicked() {
-                        let mut stream = TcpStream::connect(self.server.ip.clone().trim())
-                            .expect("Stream failed to connect");
+                        let mut stream = match TcpStream::connect(self.server.ip.clone().trim()) {
+                            Ok(stream) => {
+                                stream
+                            },
+                            Err(err) => {
+                                self.error_modal.show = true;
+                                self.error_modal.message = format!("Failed to connec to the server: (err {}) {}", err.raw_os_error().unwrap(), err.kind());
+                                return;
+                            }
+                        };
+
                         self.remote.aes = match client_kex(&mut stream) {
                             Ok(v) => Some(v),
                             Err(e) => {
@@ -265,7 +287,6 @@ impl eframe::App for ChatClient {
                                                 uvec_clone.write().unwrap().clear();
                                                 println!("Got list!");
                                                 dbg!(members.clone());
-                                                
                                                 for member in members {
                                                     uvec_clone.write().unwrap().push(member.to_owned());
                                                 }
@@ -307,11 +328,41 @@ impl eframe::App for ChatClient {
                                     Err(TryRecvError::Empty) => thread::yield_now(),
                                     Err(TryRecvError::Disconnected) => break,
                                 }
-                                thread::sleep(Duration::from_micros(50));
+                                thread::sleep(Duration::from_micros(10));
                             }
                         });
 
                         self.connected = true;
+                    }
+
+                    #[cfg(debug_assertions)]
+                    if ui.button("QUICK FILL (DEBUG)").clicked() {
+                        self.username = "debugger".into();
+                        self.password = "1234".into();
+                        self.server.name = "local debugging server".into();
+                        self.server.ip = "127.0.0.1:37549".into();
+                    }
+
+                    if self.error_modal.show {
+                        egui::Window::new(egui::RichText::new("Connection Error").color(Color32::WHITE))
+                            .collapsible(false)
+                            .resizable(false)
+                            .anchor(egui::Align2::CENTER_CENTER, [0.0, -50.0])
+                            .show(ctx, |ui| {
+                                ui.label(egui::RichText::new(&self.error_modal.message).color(Color32::RED));
+                                ui.separator();
+
+                                ui.horizontal(|ui| {
+                                    if ui.button(egui::RichText::new("Reset field").color(Color32::LIGHT_GRAY)).clicked() {
+                                        self.error_modal.show = false;
+                                        self.server.ip = "".into();
+                                    }
+
+                                    if ui.button(egui::RichText::new("Go back").color(Color32::LIGHT_GRAY)).clicked() {
+                                        self.error_modal.show = false;
+                                    }
+                                });
+                            });
                     }
                 });
             } else {
@@ -407,12 +458,11 @@ fn main() {
         eframe::NativeOptions::default(),
         Box::new(|_creation_context| {
             Box::new(ChatClient {
-                username: "spixa".into(),
-                password: "1937".into(),
+                username: "".into(),
+                password: "".into(),
                 server: ServerInfo {
-                    _name: "simp3 server".into(),
+                    name: "simp3 server".into(),
                     ip: "localhost:37549".into(),
-                    _port: 37549,
                 },
                 ui_theme: Theme::default(),
                 input: "hello, world!".into(),
@@ -422,6 +472,10 @@ fn main() {
                 remote: Remote::default(),
                 running: Arc::new(AtomicBool::new(true)),
                 repaint: Arc::new(AtomicBool::new(false)),
+                error_modal: ErrorWindow {
+                    show: false,
+                    message: "No error has occured".into(),
+                },
             })
         }),
     );
