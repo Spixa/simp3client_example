@@ -9,14 +9,12 @@ use std::{
     hash::{BuildHasher, Hasher},
     io::{ErrorKind, Read, Write},
     net::{Shutdown, TcpStream},
-    process,
     sync::{
         Arc, RwLock,
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Sender, TryRecvError},
     },
     thread,
-    time::Duration,
 };
 use types::{MSG_SIZE, Packet};
 
@@ -113,7 +111,11 @@ impl ChatClient {
 impl eframe::App for ChatClient {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame /* Unnecessary */) {
         if !self.running.load(Ordering::Relaxed) {
-            process::exit(0);
+            self.connected = false;
+            self.error_modal.show = true;
+            self.error_modal.message = "You were disconnected".into();
+            self.messages.write().unwrap().clear();
+            self.running.store(true, Ordering::Relaxed);
         }
 
         if self.repaint.load(Ordering::Relaxed) {
@@ -164,15 +166,15 @@ impl eframe::App for ChatClient {
                             },
                             Err(err) => {
                                 self.error_modal.show = true;
-                                self.error_modal.message = format!("Failed to connec to the server: (err {}) {}", err.raw_os_error().unwrap(), err.kind());
+                                self.error_modal.message = format!("Failed to connec to the server: {}", err.kind());
                                 return;
                             }
                         };
 
                         self.remote.aes = match client_kex(&mut stream) {
                             Ok(v) => Some(v),
-                            Err(e) => {
-                                eprintln!("error occured during kex, dying (err: {e})");
+                            Err(_) => {
+                                self.running.store(false, Ordering::Relaxed);
                                 std::process::exit(-1);
                             }
                         };
@@ -217,17 +219,18 @@ impl eframe::App for ChatClient {
 
                                         match packet {
                                             Ok(_) => {}
-                                            Err(ref e) => {
-                                                println!("server went down");
-                                                println!("error: {e}");
+                                            Err(_) => {
                                                 stream.shutdown(Shutdown::Both).expect("Failed to shutdown");
                                                 running.store(false, Ordering::Relaxed);
-
-                                                thread::sleep(Duration::from_secs(1));
                                             }
                                         }
 
-                                        let packet = packet.unwrap();
+                                        let packet = match packet {
+                                            Ok(p) => p,
+                                            Err(_) => {
+                                                break;
+                                            },
+                                        };
                                         let decrypted = packet.decrypt(&mut aes_clone);
                                         let packet = decode_packet(&decrypted);
 
@@ -285,7 +288,6 @@ impl eframe::App for ChatClient {
                                             Packet::List(list) => {
                                                 let members : Vec<&str> = list.split(',').collect();
                                                 uvec_clone.write().unwrap().clear();
-                                                println!("Got list!");
                                                 dbg!(members.clone());
                                                 for member in members {
                                                     uvec_clone.write().unwrap().push(member.to_owned());
@@ -297,7 +299,7 @@ impl eframe::App for ChatClient {
                                     }
                                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                                     Err(_) => {
-                                        println!("connection with server was severed");
+                                        running.store(false, Ordering::Relaxed);
                                         break;
                                     }
                                 }
@@ -310,7 +312,6 @@ impl eframe::App for ChatClient {
                                                 let (user, cont) = dm_cmd.split_once(' ').unwrap_or((dm_cmd.as_str(), ""));
                                                 Packet::ClientDM(user.to_string(), cont.to_string())
                                             } else {
-                                                println!("[client] internal command for DM is: /dm <uname> <content>");
                                                 Packet::Ping
                                             }
                                         } else if msg.starts_with("/") {
